@@ -1,0 +1,35 @@
+[project]
+name = "personal-ai-assistant"
+version = "0.2.0"
+description = "本地优先的群聊阅读代理：把没时间看的群消息，挑成值得看的内容"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "personal-ai-assistant contributors" }]
+keywords = ["qq", "chat", "llm", "local-first", "onebot"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "flask>=3.0",
+    "websockets>=12",
+    "openai>=1.40",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pillow>=10", "imageio-ffmpeg>=0.6"]
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

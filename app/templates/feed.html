@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-density="normal" data-size="normal">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>chatsift · 群聊阅读代理</title>
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="icon" href="{{ url_for('static', filename='favicon-32.png') }}" sizes="32x32">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<style>
+:root {
+    --accent: #4f8bff;
+    --accent-2: #77b0ff;
+    --accent-soft: rgba(79, 139, 255, .12);
+    --bg-1: #f4f8ff;
+    --bg-2: #f2f4ff;
+    --bg-3: #eef5ff;
+    --card: rgba(255, 255, 255, .74);
+    --card-strong: #ffffff;
+    --line: rgba(255, 255, 255, .92);
+    --border: rgba(30, 30, 60, .06);
+    --ink: #2f3040;
+    --ink-soft: #4a4c60;
+    --muted: #61647c;
+    --shadow: 0 12px 30px rgba(84, 72, 128, .07);
+    --radius: 16px;
+    --gap: 16px;
+    --pad: 18px;
+    --base: 15px;
+    --lh: 1.75;
+    --maxw: 1560px;
+    --card-solid: #ffffff;
+}
+[data-theme="dark"] {
+    --bg-1: #17161d;
+    --bg-2: #1b1a24;
+    --bg-3: #151721;
+    --card: rgba(38, 37, 48, .78);
+    --card-strong: #26252f;
+    --line: rgba(255, 255, 255, .08);
+    --border: rgba(255, 255, 255, .06);
+    --ink: #eceaf5;
+    --ink-soft: #d2d0e0;
+    --muted: #b3b1c6;
+    --shadow: 0 12px 30px rgba(0, 0, 0, .35);
+}
+[data-density="compact"] { --gap: 10px; --pad: 13px; }
+[data-density="loose"] { --gap: 24px; --pad: 24px; }
+[data-theme="dark"] { --card-solid: #26252f; }
+[data-glass="off"] .card,
+[data-glass="off"] .item-card,
+[data-glass="off"] .stat,
+[data-glass="off"] .tag,
+[data-glass="off"] .chip {
+    background: var(--card-solid);
+    backdrop-filter: none;
+}
+[data-bg="solid"] body { background: var(--bg-1); }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    margin: 0;
+    font-size: var(--base);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Microsoft YaHei", sans-serif;
+    background:
+        radial-gradient(ellipse at 8% 4%, var(--bg-1) 0, transparent 46%),
+        radial-gradient(ellipse at 92% 2%, var(--bg-2) 0, transparent 44%),
+        radial-gradient(ellipse at 70% 96%, var(--bg-3) 0, transparent 46%),
+        var(--bg-1);
+    background-attachment: fixed;
+}
+.app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
+
+/* ---------- 侧边栏 ---------- */
+.sidebar {
+    padding: 20px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    border-right: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--card), transparent 70%);
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
+.brand-bar { width: 4px; height: 22px; border-radius: 3px; background: var(--accent); }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
+.brand-sub { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+    display: flex; align-items: center; gap: 10px;
+    border: 0; background: transparent; cursor: pointer;
+    padding: 10px 12px; border-radius: 11px;
+    color: var(--ink-soft); font: inherit; font-size: 13.5px;
+    text-align: left; transition: background .15s, color .15s;
+}
+.nav-item .ico { width: 16px; text-align: center; opacity: .75; }
+.nav-item .dot {
+    margin-left: auto; width: 18px; height: 3px; border-radius: 2px;
+    background: var(--accent); opacity: .35;
+}
+.nav-item:hover { background: var(--accent-soft); }
+.nav-item.on {
+    background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+.nav-item.on .dot { opacity: 1; }
+.side-foot { margin-top: auto; padding: 14px 10px 4px; }
+
+/* ---------- 主区 ---------- */
+.main { min-width: 0; max-width: var(--maxw); width: 100%; margin: 0 auto; padding: 20px 26px 60px; }
+.topbar {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 18px;
+}
+.topbar h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.chips { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 30px; padding: 6px 12px;
+    font-size: 11.5px; color: var(--muted);
+    box-shadow: var(--shadow);
+}
+.chip b { color: var(--ink); font-weight: 600; }
+.chip .led { width: 7px; height: 7px; border-radius: 50%; background: #39bd86; }
+.chip .led.off { background: #d0685e; }
+.chip .led.idle { background: #d8a33c; }
+
+.card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: var(--pad);
+    box-shadow: var(--shadow); backdrop-filter: blur(14px);
+    margin-bottom: var(--gap);
+}
+.card-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    margin: 0 0 12px;
+}
+.card-title .bar { width: 3px; height: 13px; border-radius: 2px; background: var(--accent); }
+.card-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+
+/* ---------- 数据概览 ---------- */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 13px 16px; box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 12px;
+}
+.stat .icoo {
+    width: 34px; height: 34px; border-radius: 12px; flex: 0 0 34px;
+    display: grid; place-items: center; font-size: 15px;
+    background: var(--accent-soft); color: var(--accent);
+}
+.stat .num { font-size: 22px; font-weight: 700; line-height: 1.25; }
+.stat .lbl { font-size: 12px; color: var(--muted); }
+
+/* ---------- 内容流 ---------- */
+.feed-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: var(--gap); align-items: start; }
+@media (max-width: 1180px) { .feed-grid { grid-template-columns: minmax(0, 1fr); } }
+.col-right { min-width: 0; }
+.col-left { min-width: 0; }
+.col-head {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    margin: 2px 2px 9px; letter-spacing: .3px;
+}
+.col-head .col-sub { font-weight: 400; color: var(--muted); opacity: .75; font-size: 11px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.tag {
+    border: 1px solid var(--line); background: var(--card);
+    color: var(--ink-soft); border-radius: 30px;
+    padding: 7px 15px; font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.tag:hover { color: var(--accent); }
+.tag.on { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
+.tag .n { opacity: .7; font-size: 10.5px; margin-left: 4px; }
+
+.item-card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: var(--pad);
+    box-shadow: var(--shadow); margin-bottom: var(--gap);
+}
+.item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.badge {
+    font-size: 10.5px; font-weight: 700; color: #fff;
+    border-radius: 20px; padding: 3px 9px;
+    background: var(--accent);
+}
+.badge.knowledge { background: #3fa97a; }
+.badge.joke { background: #e8913f; }
+.badge.view { background: #8a63d8; }
+.badge.intel { background: #4389d6; }
+.badge.deal { background: #d4608a; }
+.verdict {
+    font-size: 10px; font-weight: 600; border-radius: 20px;
+    padding: 2px 9px; background: var(--accent-soft); color: var(--accent);
+}
+.verdict.meh { background: rgba(130, 140, 160, .14); color: #6b7280; }
+.taste-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 0; }
+.taste-row .name { min-width: 62px; color: var(--ink-soft); }
+.taste-bar { flex: 1; height: 8px; border-radius: 6px; background: rgba(130,140,160,.16); overflow: hidden; display: flex; }
+.taste-bar i { display: block; height: 100%; }
+.taste-bar .good { background: var(--accent); }
+.taste-bar .bad { background: #c9cdd8; }
+.taste-num { font-size: 11px; color: var(--muted); min-width: 64px; text-align: right; }
+.when { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.quote {
+    font-size: 17px; line-height: var(--lh); font-weight: 600;
+    margin: 2px 0 10px; overflow-wrap: anywhere; white-space: pre-wrap;
+    display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.why {
+    font-size: 13px; color: var(--ink-soft); line-height: var(--lh);
+    background: var(--accent-soft); border-radius: 10px; padding: 8px 11px;
+}
+.why b { color: var(--accent); font-weight: 600; }
+.ctx { margin-top: 8px; }
+.ctx summary { cursor: pointer; font-size: 12.5px; color: var(--muted); list-style: none; }
+.ctx summary::-webkit-details-marker { display: none; }
+.ctx summary::before { content: "▸ "; }
+.ctx[open] summary::before { content: "▾ "; }
+.ctx-body {
+    margin-top: 8px; padding: 9px 12px; border-radius: 10px;
+    background: var(--card-strong); border: 1px solid var(--border);
+    font-size: 12.5px; line-height: 1.9; color: var(--ink-soft);
+}
+.ctx-line + .ctx-line { margin-top: 3px; }
+.ctx-source { color: var(--ink); font-weight: 600; }
+.meta-row { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; margin-top: 9px; }
+.vote-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.vote {
+    border: 1px solid var(--border); background: var(--card-strong);
+    color: var(--muted); border-radius: 20px; padding: 4px 13px;
+    font: inherit; font-size: 11.5px; cursor: pointer;
+}
+.vote:hover { color: var(--accent); border-color: var(--accent); }
+.vote.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.vote.down.on { background: rgba(120, 130, 150, .16); color: #5d6472; border-color: transparent; }
+.vote-row .done { font-size: 11px; color: var(--muted); margin-left: 4px; }
+
+/* ---------- 搜索 ---------- */
+.search-box { display: flex; gap: 10px; align-items: center; }
+.search-box input {
+    flex: 1; min-width: 180px; font: inherit; font-size: 13px;
+    padding: 9px 13px; border-radius: 11px;
+    border: 1px solid var(--border); background: var(--card-strong); color: var(--ink);
+}
+.search-box input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.search-group { margin-top: 16px; }
+.search-group h4 {
+    font-size: 11.5px; color: var(--muted); font-weight: 600;
+    margin: 0 0 8px; letter-spacing: .4px;
+}
+.msg-hit {
+    padding: 7px 0; border-top: 1px dashed var(--border);
+    font-size: 12.5px; color: var(--ink-soft); line-height: 1.75;
+}
+.msg-hit:first-child { border-top: 0; }
+.msg-hit .who { color: var(--ink); font-weight: 600; }
+.msg-hit .at { color: var(--muted); font-size: 11px; margin-left: 6px; }
+
+/* ---------- 纪要 ---------- */
+.topic { padding: 7px 0; border-top: 1px dashed var(--border); }
+.topic:first-of-type { border-top: 0; padding-top: 0; }
+.topic-title { font-size: 14.5px; font-weight: 600; margin-bottom: 3px; }
+.st { font-size: 10px; font-weight: 500; border-radius: 20px; padding: 2px 7px; margin-left: 6px; background: var(--accent-soft); color: var(--accent); }
+.st.open { background: rgba(210,160,60,.16); color: #b8862b; }
+.st.ongoing { background: rgba(70,140,220,.14); color: #3b7cc9; }
+.topic-sum { font-size: 13.5px; line-height: var(--lh); color: var(--ink-soft); }
+.topic-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.digest-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.digest-head h3 { font-size: 15px; margin: 0; }
+.digest-span { font-size: 12px; color: var(--muted); }
+
+/* ---------- 历史 ---------- */
+.hist-day h4 { font-size: 12px; color: var(--muted); margin: 14px 0 6px; letter-spacing: .5px; }
+.hist-day:first-child h4 { margin-top: 0; }
+.hist-item {
+    border-top: 1px dashed var(--border); padding: 10px 0;
+    cursor: pointer; font-size: 13px; color: var(--ink-soft);
+}
+.hist-item:first-of-type { border-top: 0; }
+.hist-item:hover { color: var(--accent); }
+.hist-line { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.hist-time { color: var(--muted); font-size: 11.5px; min-width: 42px; }
+.hist-chat { font-weight: 600; color: var(--ink); }
+.hist-count { color: var(--muted); font-size: 11.5px; }
+.hist-head { color: var(--ink-soft); font-size: 12px; margin-top: 3px; }
+.hist-detail {
+    margin-top: 8px; padding: 10px 12px; border-radius: 10px;
+    background: var(--card-strong); border: 1px solid var(--border);
+    font-size: 11.5px; line-height: 1.85;
+}
+.hist-topic { margin-bottom: 6px; }
+.hist-card { margin-top: 4px; color: var(--ink-soft); }
+.hist-card .k {
+    display: inline-block; font-size: 10px; padding: 1px 6px;
+    border-radius: 20px; background: var(--accent-soft); color: var(--accent); margin-right: 6px;
+}
+
+/* ---------- 自检 ---------- */
+.health-row { display: grid; grid-template-columns: 14px 74px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 13px; line-height: 2; }
+.health-row .dot { width: 12px; color: #3fa97a; }
+.health-row.warn .dot { color: #d8a33c; }
+.health-row.error .dot { color: #d0685e; }
+.health-row.info .dot { color: var(--muted); }
+.health-row .label { min-width: 60px; color: var(--muted); }
+.health-warn { color: #b8862b; margin-top: 8px; font-size: 11.5px; }
+
+/* ---------- 设置 ---------- */
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 0; border-top: 1px dashed var(--border); }
+.row:first-of-type { border-top: 0; padding-top: 0; }
+.row .name { min-width: 90px; font-size: 13px; color: var(--ink-soft); }
+.row .hint { font-size: 11px; color: var(--muted); }
+
+select, input[type="number"], .btn {
+    font: inherit; font-size: 12px; color: var(--ink);
+    background: var(--card-strong); border: 1px solid var(--border);
+    border-radius: 10px; padding: 7px 10px;
+}
+.btn {
+    cursor: pointer; border: 0; color: #fff; font-weight: 600;
+    background: var(--accent); box-shadow: 0 6px 16px rgba(239, 91, 140, .25);
+}
+.btn[disabled] { opacity: .6; cursor: progress; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); box-shadow: none; }
+.btn.mini { padding: 5px 11px; font-size: 11.5px; border-radius: 9px; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card-solid) inset; }
+.custom-color { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.custom-color input[type="color"] {
+    width: 26px; height: 26px; padding: 0; border: 1px solid var(--border);
+    border-radius: 8px; background: none; cursor: pointer;
+}
+input[type="range"] { width: 150px; accent-color: var(--accent); cursor: pointer; }
+.val { font-size: 11.5px; color: var(--muted); min-width: 44px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.seg button {
+    border: 0; background: var(--card-strong); color: var(--ink-soft);
+    font: inherit; font-size: 11.5px; padding: 6px 12px; cursor: pointer;
+}
+.seg button.on { background: var(--accent); color: #fff; }
+
+.empty { color: var(--ink-soft); font-size: 13px; line-height: 1.9; padding: 14px 0; }
+.hidden { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+
+@media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x: auto; align-items: center; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .brand { padding: 0 12px 0 0; }
+    .brand-sub { display: none; }
+    .nav { flex-direction: row; }
+    .nav-item .dot { display: none; }
+    .side-foot { display: none; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .main { padding: 14px 14px 40px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-bar"></span>
+            <span class="brand-name">chatsift</span>
+            <span class="brand-sub">v0.2</span>
+        </div>
+        <nav class="nav" id="nav">
+            <button class="nav-item on" data-view="feed"><span class="ico">▤</span>内容流<span class="dot"></span></button>
+            <button class="nav-item" data-view="history"><span class="ico">◷</span>历史记录<span class="dot"></span></button>
+            <button class="nav-item" data-view="health"><span class="ico">✚</span>自检<span class="dot"></span></button>
+            <button class="nav-item" data-view="search"><span class="ico">⌕</span>搜索<span class="dot"></span></button>
+            <button class="nav-item" data-view="settings"><span class="ico">⚙</span>设置<span class="dot"></span></button>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <h1 id="page-title">内容流</h1>
+            <div class="chips">
+                <span class="chip"><span class="led" id="led-receiver"></span><span id="chip-receiver">接收端 …</span></span>
+                <span class="chip" id="chip-account">账号 —</span>
+                <span class="chip">消息 <b id="chip-msgs">0</b></span>
+                <button class="chip" id="refresh" style="cursor:pointer">↻ 刷新</button>
+            </div>
+        </div>
+
+        <!-- 内容流 -->
+        <section id="view-feed">
+            <div class="stats">
+                <div class="stat"><span class="icoo">▤</span><div><div class="num" id="s-chats">0</div><div class="lbl">群聊</div></div></div>
+                <div class="stat"><span class="icoo">✧</span><div><div class="num" id="s-cards">0</div><div class="lbl">值得看</div></div></div>
+                <div class="stat"><span class="icoo">◷</span><div><div class="num" id="s-topics">0</div><div class="lbl">话题</div></div></div>
+                <div class="stat"><span class="icoo">◌</span><div><div class="num" id="s-pending">0</div><div class="lbl">待分析</div></div></div>
+            </div>
+
+            <div class="feed-grid">
+                <div class="col-left">
+                    <div class="col-head">群里发生了什么<span class="col-sub" id="digest-count"></span></div>
+                    <div id="digests"></div>
+                </div>
+                <div class="col-right">
+                    <div class="col-head">值得看的<span class="col-sub" id="card-count"></span></div>
+                    <div class="filters" id="filters"></div>
+                    <div id="feed"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 历史 -->
+        <section id="view-history" class="hidden">
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>历史记录<span class="card-sub" id="history-hint">按覆盖日期分组，点开看那一批</span></div>
+                <div id="history"></div>
+            </div>
+        </section>
+
+        <!-- 自检 -->
+        <section id="view-health" class="hidden">
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>检查结果<span class="card-sub" id="health-hint">接收端、队列、游标、报告</span></div>
+                <div id="health"></div>
+                <div style="margin-top:12px"><button class="btn mini" id="health-btn">重新检查</button></div>
+            </div>
+        </section>
+
+        <!-- 搜索 -->
+        <section id="view-search" class="hidden">
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>搜索<span class="card-sub" id="search-hint">搜消息原文、卡片和话题</span></div>
+                <div class="search-box">
+                    <input id="search-input" type="search" placeholder="输入关键词，回车搜索（比如：显卡、维护、K90）">
+                    <button class="btn mini" id="search-btn">搜索</button>
+                </div>
+                <div id="search-results"></div>
+            </div>
+        </section>
+
+        <!-- 设置 -->
+        <section id="view-settings" class="hidden">
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>总结节奏</div>
+                <div class="row">
+                    <span class="name">自动总结</span>
+                    <label><input type="checkbox" id="auto-toggle"> 开启</label>
+                    <span class="hint">关掉后只有你点按钮才分析</span>
+                </div>
+                <div class="row">
+                    <span class="name">间隔</span>
+                    <input type="number" id="interval-input" min="1" max="1440" step="5" style="width:80px">
+                    <span class="hint">分钟</span>
+                    <button class="btn mini" id="save-settings">保存</button>
+                    <span class="hint" id="settings-hint"></span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>手动总结</div>
+                <div class="row">
+                    <select id="chat-select"></select>
+                    <button class="btn mini" id="generate">总结这段时间</button>
+                    <button class="btn ghost mini" id="export-btn">导出 Markdown</button>
+                </div>
+                <div class="hint" id="coverage" style="margin-top:8px">选择群后，这里会显示这次要总结哪一段。</div>
+                <div class="hint" id="hint" style="margin-top:6px">只处理"上次总结之后"的新消息，一次最多 100 条。</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>你的口味<span class="card-sub">点「有用 / 无聊」后这里会有统计</span></div>
+                <div id="taste"></div>
+                <div class="row" style="border-top:0">
+                    <span class="name">桌面提醒</span>
+                    <button class="btn ghost mini" id="notify-btn">开启新内容提醒</button>
+                    <span class="hint" id="notify-hint"></span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="bar"></span>外观</div>
+                <div class="row">
+                    <span class="name">主题</span>
+                    <div class="seg" id="seg-theme">
+                        <button data-v="light">浅色</button>
+                        <button data-v="dark">深色</button>
+                        <button data-v="system">跟随系统</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name">主色</span>
+                    <div id="swatches" class="swatches"></div>
+                    <label class="custom-color">
+                        <input type="color" id="accent-custom" value="#ef5b8c">
+                        <span>自定义</span>
+                    </label>
+                </div>
+                <div class="row">
+                    <span class="name">字号</span>
+                    <input type="range" id="size-range" min="13" max="20" step="1" value="15">
+                    <span class="val" id="size-val">15px</span>
+                </div>
+                <div class="row">
+                    <span class="name">行距</span>
+                    <div class="seg" id="seg-lh">
+                        <button data-v="1.55">紧凑</button>
+                        <button data-v="1.75">标准</button>
+                        <button data-v="2">宽松</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name">密度</span>
+                    <div class="seg" id="seg-density">
+                        <button data-v="compact">紧凑</button>
+                        <button data-v="normal">标准</button>
+                        <button data-v="loose">宽松</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name">圆角</span>
+                    <input type="range" id="radius-range" min="6" max="26" step="1" value="16">
+                    <span class="val" id="radius-val">16px</span>
+                </div>
+                <div class="row">
+                    <span class="name">卡片</span>
+                    <div class="seg" id="seg-glass">
+                        <button data-v="on">毛玻璃</button>
+                        <button data-v="off">纯色</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name">背景</span>
+                    <div class="seg" id="seg-bg">
+                        <button data-v="gradient">渐变</button>
+                        <button data-v="solid">纯色</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name">内容宽度</span>
+                    <div class="seg" id="seg-wide">
+                        <button data-v="1">满宽</button>
+                        <button data-v="0">限宽 1200</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <span class="name"></span>
+                    <button class="btn ghost mini" id="reset-prefs">恢复默认外观</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+};
+const fmt = value => value ? String(value).replace("T", " ").slice(0, 16) : "";
+const hhmm = value => value ? String(value).slice(11, 16) : "";
+
+/* ---------------- 外观偏好 ---------------- */
+const ACCENTS = [
+    ["#ef5b8c", "#ff87b0"], ["#e0453f", "#ff7f74"], ["#f0883e", "#ffab6b"],
+    ["#e0b02c", "#f5cf62"], ["#3fa97a", "#6fd2a6"], ["#4f8bff", "#77b0ff"],
+    ["#4f6bff", "#8298ff"], ["#9b62e8", "#bb92f4"],
+];
+const PREF_KEY = "chatsift.prefs.v2";
+const DEFAULTS = {
+    theme: "light", accent: 5, custom: "#4f8bff",
+    size: 15, lh: "1.75", density: "normal",
+    radius: 16, glass: "on", bg: "gradient", wide: "1",
+};
+let prefs = Object.assign({}, DEFAULTS);
+
+function hexToRgba(hex, alpha) {
+    const value = String(hex).replace("#", "");
+    const full = value.length === 3 ? value.split("").map(c => c + c).join("") : value;
+    const num = parseInt(full.slice(0, 6) || "ef5b8c", 16);
+    const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function resolveTheme() {
+    if (prefs.theme !== "system") return prefs.theme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function loadPrefs() {
+    try { prefs = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(PREF_KEY) || "{}")); } catch (e) {}
+    // 链接参数可以直接指定，方便分享：?theme=dark&accent=5&size=17
+    const params = new URLSearchParams(location.search);
+    ["theme", "density", "glass", "bg", "wide"].forEach(key => {
+        const value = params.get(key);
+        if (value) prefs[key] = value;
+    });
+    ["size", "radius"].forEach(key => {
+        const value = Number(params.get(key));
+        if (value) prefs[key] = value;
+    });
+    if (params.get("accent") !== null) prefs.accent = Number(params.get("accent"));
+    applyPrefs();
+}
+
+function savePrefs() { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }
+
+function applyPrefs() {
+    const root = document.documentElement;
+    root.dataset.theme = resolveTheme();
+    root.dataset.density = prefs.density;
+    root.dataset.glass = prefs.glass;
+    root.dataset.bg = prefs.bg;
+
+    const accent = prefs.accent < 0 ? prefs.custom : (ACCENTS[prefs.accent] || ACCENTS[0])[0];
+    root.style.setProperty("--accent", accent);
+    root.style.setProperty("--accent-soft", hexToRgba(accent, .13));
+    root.style.setProperty("--base", prefs.size + "px");
+    root.style.setProperty("--lh", prefs.lh);
+    root.style.setProperty("--radius", prefs.radius + "px");
+    root.style.setProperty("--maxw", prefs.wide === "1" ? "none" : "1200px");
+
+    renderPrefControls();
+}
+
+function setPref(key, value) {
+    prefs[key] = value;
+    savePrefs();
+    applyPrefs();
+}
+
+function renderPrefControls() {
+    ["theme", "density", "glass", "bg", "wide"].forEach(key => {
+        document.querySelectorAll(`#seg-${key} button`).forEach(b => {
+            b.classList.toggle("on", String(b.dataset.v) === String(prefs[key]));
+        });
+    });
+    document.querySelectorAll("#seg-lh button").forEach(b => {
+        b.classList.toggle("on", String(b.dataset.v) === String(prefs.lh));
+    });
+
+    const size = $("size-range"), radius = $("radius-range");
+    if (size) { size.value = prefs.size; $("size-val").textContent = prefs.size + "px"; }
+    if (radius) { radius.value = prefs.radius; $("radius-val").textContent = prefs.radius + "px"; }
+    if ($("accent-custom")) $("accent-custom").value = prefs.custom;
+
+    document.querySelectorAll(".swatch").forEach((b, i) => {
+        b.classList.toggle("on", i === prefs.accent);
+    });
+}
+
+function initPrefsUI() {
+    const box = $("swatches");
+    ACCENTS.forEach((pair, index) => {
+        const b = el("button", "swatch");
+        b.type = "button";
+        b.title = "主色 " + (index + 1);
+        b.style.background = `linear-gradient(135deg, ${pair[0]}, ${pair[1]})`;
+        b.addEventListener("click", () => setPref("accent", index));
+        box.append(b);
+    });
+
+    const custom = $("accent-custom");
+    custom.addEventListener("input", () => { prefs.custom = custom.value; prefs.accent = -1; savePrefs(); applyPrefs(); });
+    custom.addEventListener("click", () => { if (prefs.accent >= 0) { prefs.accent = -1; savePrefs(); applyPrefs(); } });
+
+    ["theme", "density", "glass", "bg", "wide"].forEach(key => {
+        document.querySelectorAll(`#seg-${key} button`).forEach(btn => {
+            btn.addEventListener("click", () => setPref(key, btn.dataset.v));
+        });
+    });
+    document.querySelectorAll("#seg-lh button").forEach(btn => {
+        btn.addEventListener("click", () => setPref("lh", btn.dataset.v));
+    });
+
+    $("size-range").addEventListener("input", e => setPref("size", Number(e.target.value)));
+    $("radius-range").addEventListener("input", e => setPref("radius", Number(e.target.value)));
+
+    $("reset-prefs").addEventListener("click", () => {
+        prefs = Object.assign({}, DEFAULTS);
+        savePrefs();
+        applyPrefs();
+    });
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if (prefs.theme === "system") applyPrefs();
+    });
+}
+
+/* ---------------- 视图切换 ---------------- */
+const TITLES = { feed: "内容流", history: "历史记录", search: "搜索", health: "自检", settings: "设置" };
+function showView(name) {
+    if (!TITLES[name]) name = "feed";
+    document.querySelectorAll("#nav .nav-item").forEach(b => b.classList.toggle("on", b.dataset.view === name));
+    ["feed", "history", "search", "health", "settings"].forEach(v => $("view-" + v).classList.toggle("hidden", v !== name));
+    $("page-title").textContent = TITLES[name] || "";
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    if (name === "history") loadHistory();
+    if (name === "health") runHealth();
+    if (name === "settings") loadTaste();
+    if (name === "search") $("search-input").focus();
+}
+
+/* ---------------- 数据 ---------------- */
+let feedData = { cards: [], digests: [], chats: [], stats: {} };
+let activeType = "all";
+const TYPES = [["all", "全部"], ["knowledge", "知识点"], ["joke", "段子"], ["view", "观点"], ["intel", "情报"], ["deal", "约定"]];
+const MARKS = { ok: "✓", warn: "!", error: "✗", info: "·" };
+
+function stars(score) {
+    const n = Math.max(0, Math.min(5, Number(score) || 0));
+    return "●".repeat(n) + "○".repeat(5 - n);
+}
+
+async function loadFeed() {
+    const data = await (await fetch("/api/feed")).json();
+    feedData = data;
+    $("s-chats").textContent = data.stats.chat_count || 0;
+    $("s-cards").textContent = data.cards.length;
+    $("s-topics").textContent = data.digests.reduce((sum, d) => sum + (d.topics || []).length, 0);
+    $("chip-msgs").textContent = (data.chats || []).reduce((sum, c) => sum + (c.message_count || 0), 0);
+    renderFilters(); renderDigests(); renderFeed(); renderSelect(); checkNotifications(data.cards);
+}
+
+function renderFilters() {
+    const box = $("filters"); box.replaceChildren();
+    $("card-count").textContent = ` ${feedData.cards.length} 条`;
+    TYPES.forEach(([key, label]) => {
+        const count = key === "all" ? feedData.cards.length : feedData.cards.filter(c => c.type === key).length;
+        if (key !== "all" && !count) return;
+        const b = el("button", "tag" + (activeType === key ? " on" : ""));
+        b.type = "button";
+        b.append(document.createTextNode(label));
+        if (count) b.append(el("span", "n", count));
+        b.addEventListener("click", () => { activeType = key; renderFilters(); renderFeed(); });
+        box.append(b);
+    });
+}
+
+function renderCard(card) {
+    const node = el("article", "item-card");
+    const top = el("div", "item-top");
+    top.append(el("span", `badge ${card.type}`, card.type_label || card.type));
+    const verdict = card.verdict === "meh" ? "meh" : "worth";
+    top.append(el("span", `verdict ${verdict}`, card.verdict_label || (verdict === "worth" ? "值得看" : "一般")));
+    top.append(el("span", "when", `${card.chat_name || ""} · ${fmt(card.timestamp)}`));
+    node.append(top);
+    node.append(el("div", "quote", `「${card.quote || ""}」`));
+    if (card.why) {
+        const why = el("div", "why");
+        why.append(el("b", "", "为什么给你看："));
+        why.append(document.createTextNode(card.why));
+        node.append(why);
+    }
+    const before = (card.context && card.context.before) || [];
+    const after = (card.context && card.context.after) || [];
+    if (before.length || after.length) {
+        const details = el("details", "ctx");
+        details.append(el("summary", "", `上下文 ${before.length + after.length} 条`));
+        const body = el("div", "ctx-body");
+        before.forEach(l => body.append(el("div", "ctx-line", `${l.sender}：${l.content}`)));
+        body.append(el("div", "ctx-line ctx-source", `▶ ${card.sender}：${card.quote}`));
+        after.forEach(l => body.append(el("div", "ctx-line", `${l.sender}：${l.content}`)));
+        details.append(body); node.append(details);
+    }
+    const foot = el("div", "meta-row");
+    foot.append(el("span", "", `说话人：${card.sender || "未知"}`));
+    foot.append(el("span", "", card.confidence_label || ""));
+    foot.append(el("span", "", `分析于 ${fmt(card.generated_at)}`));
+    node.append(foot);
+    node.append(renderVotes(card));
+    return node;
+}
+
+function renderVotes(card) {
+    const row = el("div", "vote-row");
+    const up = el("button", "vote up", "有用");
+    const down = el("button", "vote down", "无聊");
+    const tip = el("span", "done", "");
+
+    function paint() {
+        up.classList.toggle("on", card.vote === 1);
+        down.classList.toggle("on", card.vote === -1);
+        tip.textContent = card.vote === 1 ? "已记下：这类多来点"
+            : card.vote === -1 ? "已记下：这类少来点" : "";
+    }
+
+    async function send(value) {
+        const next = card.vote === value ? 0 : value;
+        up.disabled = down.disabled = true;
+        try {
+            const res = await fetch("/api/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    key: card.key,
+                    chat_id: card.chat_id,
+                    quote: card.quote,
+                    vote: next,
+                }),
+            });
+            if (!res.ok) throw new Error("保存失败");
+            card.vote = next;
+            paint();
+        } catch (error) {
+            tip.textContent = `没存上：${error.message}`;
+        } finally {
+            up.disabled = down.disabled = false;
+        }
+    }
+
+    up.addEventListener("click", () => send(1));
+    down.addEventListener("click", () => send(-1));
+    row.append(up, down, tip);
+    paint();
+    return row;
+}
+
+async function runSearch() {
+    const keyword = $("search-input").value.trim();
+    const box = $("search-results");
+    if (!keyword) {
+        box.replaceChildren();
+        $("search-hint").textContent = "搜消息原文、卡片和话题";
+        return;
+    }
+
+    box.replaceChildren(el("div", "empty", "搜索中…"));
+    try {
+        const data = await (await fetch(`/api/search?q=${encodeURIComponent(keyword)}`)).json();
+        box.replaceChildren();
+
+        if (data.cards.length) {
+            const group = el("div", "search-group");
+            group.append(el("h4", "", `卡片 ${data.cards.length} 条`));
+            data.cards.forEach(card => group.append(renderCard(card)));
+            box.append(group);
+        }
+
+        if (data.topics.length) {
+            const group = el("div", "search-group");
+            group.append(el("h4", "", `话题 ${data.topics.length} 个`));
+            data.topics.forEach(topic => {
+                const row = el("div", "topic");
+                const title = el("div", "topic-title");
+                title.append(document.createTextNode(topic.title || ""));
+                if (topic.range_label) title.append(el("span", "st", topic.range_label));
+                row.append(title);
+                row.append(el("div", "topic-sum", topic.summary || ""));
+                row.append(el("div", "topic-meta", topic.chat_name || ""));
+                group.append(row);
+            });
+            box.append(group);
+        }
+
+        if (data.messages.length) {
+            const group = el("div", "search-group");
+            group.append(el("h4", "", `原始消息 ${data.messages.length} 条`));
+            data.messages.forEach(message => {
+                const row = el("div", "msg-hit");
+                row.append(el("span", "who", message.sender_name || ""));
+                row.append(el("span", "at", `${message.chat_name || ""} · ${fmt(message.timestamp)}`));
+                row.append(el("div", "", message.content || ""));
+                group.append(row);
+            });
+            box.append(group);
+        }
+
+        if (!data.cards.length && !data.topics.length && !data.messages.length) {
+            box.append(el("div", "empty", `没有找到「${keyword}」相关的内容。`));
+        }
+
+        $("search-hint").textContent =
+            `「${keyword}」：${data.cards.length} 张卡片 · ${data.topics.length} 个话题 · ${data.messages.length} 条消息`;
+    } catch (error) {
+        box.replaceChildren(el("div", "empty", `搜索失败：${error.message}`));
+    }
+}
+
+function renderFeed() {
+    const box = $("feed"); box.replaceChildren();
+    const cards = activeType === "all" ? feedData.cards : feedData.cards.filter(c => c.type === activeType);
+    if (!cards.length) {
+        const empty = el("div", "card");
+        empty.append(el("div", "empty", "这个分类下还没有内容。去「设置」里选个群点「总结这段时间」，AI 会从最近的消息里挑知识点、段子、观点和情报。"));
+        box.append(empty);
+        return;
+    }
+    cards.forEach(card => box.append(renderCard(card)));
+}
+
+function renderDigests() {
+    const box = $("digests"); box.replaceChildren();
+    $("digest-count").textContent = ` ${(feedData.digests || []).length} 个群`;
+    (feedData.digests || []).forEach(d => {
+        const card = el("section", "card");
+        const head = el("div", "digest-head");
+        head.append(el("h3", "", d.chat_name || d.chat_id));
+        head.append(el("span", "digest-span",
+            `${hhmm(d.window_start)} – ${hhmm(d.window_end)} · ${d.message_count} 条消息 · ${d.topics.length} 个话题`));
+        card.append(head);
+        d.topics.forEach(t => {
+            const row = el("div", "topic");
+            const title = el("div", "topic-title");
+            title.append(document.createTextNode(t.title || "话题"));
+            title.append(el("span", `st ${t.status || "ongoing"}`, t.status_label || ""));
+            row.append(title);
+            row.append(el("div", "topic-sum", t.summary || ""));
+            const meta = [t.range_label, (t.participants || []).join("、")].filter(Boolean).join(" · ");
+            if (meta) row.append(el("div", "topic-meta", meta));
+            card.append(row);
+        });
+        box.append(card);
+    });
+}
+
+function renderSelect() {
+    const select = $("chat-select"); select.replaceChildren();
+    const chats = feedData.chats || [];
+    if (!chats.length) { select.append(el("option", "", "还没有任何群消息")); return; }
+    chats.forEach(chat => {
+        const option = el("option", "", chat.chat_name || chat.chat_id);
+        option.value = chat.chat_id;
+        select.append(option);
+    });
+}
+
+async function loadCoverage(chatId) {
+    const box = $("coverage");
+    if (!chatId) { box.textContent = "选择群后，这里会显示这次要总结哪一段。"; return; }
+    try {
+        const d = await (await fetch(`/api/chats/${encodeURIComponent(chatId)}/coverage`)).json();
+        let text = d.last_analyzed ? `上次总结到 ${fmt(d.last_analyzed)}` : "还没总结过（从最早的消息开始）";
+        text += d.pending ? `，这次要处理 ${d.pending} 条新消息` : "，目前没有新消息";
+        if (d.account_id) text += ` · 账号 ${d.account_id}`;
+        if (d.gaps && d.gaps.length) {
+            const last = d.gaps[d.gaps.length - 1];
+            text += `　⚠️ 接收端曾在 ${fmt(last.from)} – ${fmt(last.to)} 离线`;
+        }
+        box.textContent = text;
+    } catch (e) { box.textContent = `读取进度失败：${e.message}`; }
+}
+
+async function generateForChat() {
+    const chatId = $("chat-select").value;
+    if (!chatId) return;
+    const button = $("generate");
+    button.disabled = true; button.textContent = "AI 正在总结…";
+    $("hint").textContent = "正在读这段时间的消息，通常十几秒。";
+    try {
+        const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/summarize`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "总结失败");
+        if (data.covered === 0) {
+            $("hint").textContent = `没有新消息可总结（${data.message || ""}）`;
+        } else {
+            const cards = (data.report && data.report.payload && data.report.payload.cards) || [];
+            const topics = (data.report && data.report.payload && data.report.payload.digest) || [];
+            $("hint").textContent = `总结了 ${data.covered} 条：${topics.length} 个话题、${cards.length} 条值得看。` +
+                (data.remaining ? `还有 ${data.remaining} 条没总结，再点一次继续。` : "");
+        }
+        await loadFeed(); await loadCoverage(chatId); loadHealthChips();
+    } catch (e) { $("hint").textContent = `总结失败：${e.message}`; }
+    finally { button.disabled = false; button.textContent = "总结这段时间"; }
+}
+
+/* ---------------- 历史 ---------------- */
+async function loadHistory() {
+    const box = $("history");
+    try {
+        const data = await (await fetch("/api/history")).json();
+        box.replaceChildren();
+        if (!data.groups.length) { box.append(el("div", "empty", "还没有历史记录。")); return; }
+        data.groups.forEach(group => {
+            const day = el("div", "hist-day");
+            day.append(el("h4", "", group.date));
+            // 同一日期内按覆盖时间倒序，避免顺序看起来乱跳
+            group.items
+                .slice()
+                .sort((a, b) => (b.window_end || "").localeCompare(a.window_end || ""))
+                .forEach(item => day.append(historyItem(item)));
+            box.append(day);
+        });
+        $("history-hint").textContent = `共 ${data.total} 批，按覆盖日期分组`;
+    } catch (e) { box.append(el("div", "empty", `加载失败：${e.message}`)); }
+}
+
+function historyItem(item) {
+    const row = el("div", "hist-item");
+    const line = el("div", "hist-line");
+    line.append(el("span", "hist-time", hhmm(item.window_end || item.generated_at)));
+    line.append(el("span", "hist-chat", item.chat_name || item.chat_id));
+    line.append(el("span", "hist-count", `${item.topic_count} 话题 · ${item.card_count} 条 · ${item.message_count} 条消息`));
+    row.append(line);
+    if (item.headline) row.append(el("div", "hist-head", item.headline));
+    row.addEventListener("click", async () => {
+        const existing = row.querySelector(".hist-detail");
+        if (existing) { existing.remove(); return; }
+        try {
+            const data = await (await fetch(`/api/reports/${item.id}`)).json();
+            const payload = (data.report && data.report.payload) || {};
+            const box = el("div", "hist-detail");
+            (payload.digest || []).forEach(t => {
+                const line2 = el("div", "hist-topic");
+                line2.append(el("b", "", t.title || ""));
+                if (t.range_label) line2.append(document.createTextNode(` · ${t.range_label}`));
+                if (t.summary) line2.append(el("div", "", t.summary));
+                box.append(line2);
+            });
+            (payload.cards || []).forEach(c => {
+                const line2 = el("div", "hist-card");
+                line2.append(el("span", "k", c.type_label || ""));
+                line2.append(document.createTextNode(`「${c.quote}」`));
+                box.append(line2);
+            });
+            if (!box.childNodes.length) box.append(el("div", "", "这批没有内容"));
+            row.append(box);
+        } catch (e) { row.append(el("div", "hist-detail", `读取失败：${e.message}`)); }
+    });
+    return row;
+}
+
+/* ---------------- 自检 ---------------- */
+async function runHealth() {
+    const box = $("health");
+    try {
+        const data = await (await fetch("/api/health")).json();
+        box.replaceChildren();
+        data.items.forEach(item => {
+            const row = el("div", `health-row ${item.state}`);
+            row.append(el("span", "dot", MARKS[item.state] || "·"));
+            row.append(el("span", "label", item.label));
+            row.append(el("span", "value", item.value));
+            box.append(row);
+        });
+        if (data.warnings && data.warnings.length) box.append(el("div", "health-warn", data.warnings.join("；")));
+        $("health-hint").textContent = data.ok ? "一切正常" : `${data.warnings.length} 项需要注意`;
+        updateChips(data);
+    } catch (e) { box.append(el("div", "empty", `自检失败：${e.message}`)); }
+}
+
+function updateChips(health) {
+    const receiver = (health.items || []).find(i => i.key === "receiver");
+    const account = (health.items || []).find(i => i.key === "account");
+    if (receiver) {
+        const online = receiver.state === "ok";
+        $("led-receiver").className = "led" + (online ? "" : " off");
+        $("chip-receiver").textContent = online ? "接收端 在线" : "接收端 离线";
+    }
+    if (account) $("chip-account").textContent = `账号 ${account.value.split("（")[0]}`;
+}
+
+async function loadHealthChips() {
+    try { updateChips(await (await fetch("/api/health")).json()); } catch (e) {}
+}
+
+/* ---------------- 设置 ---------------- */
+async function loadSettings() {
+    try {
+        const data = await (await fetch("/api/settings")).json();
+        $("auto-toggle").checked = !!data.auto_analysis;
+        $("interval-input").value = data.interval_minutes;
+    } catch (e) {}
+}
+
+async function saveSettings() {
+    const button = $("save-settings");
+    button.disabled = true;
+    try {
+        const res = await fetch("/api/settings", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                auto_analysis: $("auto-toggle").checked,
+                interval_minutes: Number($("interval-input").value) || 30,
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "保存失败");
+        $("settings-hint").textContent = data.auto_analysis
+            ? `已保存：每 ${data.interval_minutes} 分钟自动总结`
+            : "已保存：只在你点按钮时总结";
+    } catch (e) { $("settings-hint").textContent = `保存失败：${e.message}`; }
+    finally { button.disabled = false; }
+}
+
+/* ---------------- 口味统计与提醒 ---------------- */
+const TYPE_NAMES = {
+    knowledge: "知识点", joke: "段子", view: "观点",
+    intel: "情报", deal: "约定", unknown: "未分类",
+};
+
+async function loadTaste() {
+    const box = $("taste");
+    if (!box) return;
+    try {
+        const data = await (await fetch("/api/feedback/stats")).json();
+        box.replaceChildren();
+        if (!data.by_type.length) {
+            box.append(el("div", "hint",
+                "还没有反馈。看到卡片下面的「有用 / 无聊」点几下，这里就会开始统计。"));
+            return;
+        }
+        data.by_type.forEach(row => {
+            const total = row.good + row.bad || 1;
+            const line = el("div", "taste-row");
+            line.append(el("span", "name", TYPE_NAMES[row.type] || row.type));
+            const bar = el("div", "taste-bar");
+            const good = el("i", "good");
+            good.style.width = `${(row.good / total) * 100}%`;
+            bar.append(good);
+            line.append(bar);
+            line.append(el("span", "taste-num", `有用 ${row.good} · 无聊 ${row.bad}`));
+            box.append(line);
+        });
+    } catch (e) {
+        box.replaceChildren(el("div", "hint", `读取失败：${e.message}`));
+    }
+}
+
+let knownKeys = new Set();
+let notifySeeded = false;
+
+function checkNotifications(cards) {
+    const worth = (cards || []).filter(c => (c.verdict || "worth") !== "meh");
+    if (!notifySeeded) {
+        worth.forEach(c => knownKeys.add(c.key));
+        notifySeeded = true;
+        return;
+    }
+    const fresh = worth.filter(c => !knownKeys.has(c.key));
+    worth.forEach(c => knownKeys.add(c.key));
+    if (!fresh.length) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const first = fresh[0];
+    new Notification("有新的值得看的内容", {
+        body: `${first.chat_name || ""}：${(first.quote || "").slice(0, 40)}`,
+        tag: "chatsift",
+    });
+}
+
+async function enableNotify() {
+    const tip = $("notify-hint");
+    if (!("Notification" in window)) {
+        tip.textContent = "这个浏览器不支持桌面通知";
+        return;
+    }
+    const permission = await Notification.requestPermission();
+    tip.textContent = permission === "granted"
+        ? "已开启：有新内容会弹桌面通知"
+        : "被拒绝了，可以在浏览器地址栏左侧改回来";
+}
+/* ---------------- 启动 ---------------- */
+document.querySelectorAll("#nav .nav-item").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+$("refresh").addEventListener("click", () => { loadFeed(); loadHealthChips(); });
+$("generate").addEventListener("click", generateForChat);
+$("save-settings").addEventListener("click", saveSettings);
+$("health-btn").addEventListener("click", runHealth);
+$("chat-select").addEventListener("change", e => loadCoverage(e.target.value));
+$("search-btn").addEventListener("click", runSearch);
+$("notify-btn").addEventListener("click", enableNotify);
+$("export-btn").addEventListener("click", () => {
+    const chatId = $("chat-select").value;
+    if (!chatId) return;
+    window.location.href = `/api/export?chat_id=${encodeURIComponent(chatId)}`;
+});
+$("search-input").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+
+loadPrefs();
+initPrefsUI();
+showView((location.hash || "#feed").slice(1));
+window.addEventListener("hashchange", () => showView((location.hash || "#feed").slice(1)));
+loadFeed().then(() => loadCoverage($("chat-select").value)).catch(() => {});
+loadSettings();
+loadHealthChips();
+
+// 支持直接带关键词打开搜索页：?q=显卡#search
+const presetQuery = new URLSearchParams(location.search).get("q");
+if (presetQuery) {
+    $("search-input").value = presetQuery;
+    showView("search");
+    runSearch();
+}
+setInterval(() => { if (!$("view-feed").classList.contains("hidden")) loadFeed(); }, 30000);
+</script>
+</body>
+</html>
